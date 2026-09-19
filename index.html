@@ -45,6 +45,7 @@
   .status { margin-top: 12px; font-size: .9rem; min-height: 1.3em; }
   .status.err { color: var(--bad); } .status.ok { color: var(--ok); }
   details { margin-top: 16px; } summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
+  details.card { margin-top: 0; } details.card > summary { color: var(--ink); font-weight: 600; font-size: 1rem; }
   .hint { color: var(--muted); font-size: .85rem; margin: 6px 0 0; }
   .hidden { display: none !important; }
   .locked .open-only { display: none !important; }
@@ -104,24 +105,6 @@
   <!-- 2. Configure -->
   <section id="view-ready" class="hidden">
     <div class="card">
-      <h2>Your data</h2>
-      <div class="status ok" id="ready-status"></div>
-      <div class="row">
-        <div id="tab-wrap" class="hidden"><label for="tab">Tab</label><select id="tab"></select></div>
-        <div><label for="col-term">Word column</label><select id="col-term"></select></div>
-        <div><label for="col-def">Explanation column</label><select id="col-def"></select></div>
-        <div><label for="col-extra">Extra note (shown after answering)</label><select id="col-extra"></select></div>
-      </div>
-      <label class="inline"><input type="checkbox" id="has-header" checked> First row is a header</label>
-      <div class="actions">
-        <button id="btn-reload">↻ Reload from sheet</button>
-        <button id="btn-share">Copy share link</button>
-        <button id="btn-change">Change source</button>
-        <button id="btn-debug">Copy debug info</button>
-      </div>
-    </div>
-
-    <div class="card">
       <h2>Quiz</h2>
       <div class="row">
         <div>
@@ -149,6 +132,24 @@
       </div>
       <div class="status" id="quiz-status"></div>
     </div>
+
+    <details class="card" id="data-details">
+      <summary>Data &amp; column settings</summary>
+      <div class="status ok" id="ready-status"></div>
+      <div class="row">
+        <div id="tab-wrap" class="hidden"><label for="tab">Tab</label><select id="tab"></select></div>
+        <div><label for="col-term">Word column</label><select id="col-term"></select></div>
+        <div><label for="col-def">Explanation column</label><select id="col-def"></select></div>
+        <div><label for="col-extra">Extra note (shown after answering)</label><select id="col-extra"></select></div>
+      </div>
+      <label class="inline"><input type="checkbox" id="has-header" checked> First row is a header</label>
+      <div class="actions">
+        <button id="btn-reload">↻ Reload from sheet</button>
+        <button id="btn-share">Copy share link</button>
+        <button id="btn-change">Change source</button>
+        <button id="btn-debug">Copy debug info</button>
+      </div>
+    </details>
   </section>
 
   <!-- 3. Quiz -->
@@ -208,6 +209,8 @@
    ========================================================================== */
 const CONFIG = {
   CLIENT_ID: "888462818947-ad4319uqr687e4oe2lb3qpdccj7p3hpt.apps.googleusercontent.com",  // OAuth client ID (public, safe to embed)
+  // Fixed columns for this sheet (letters). "" = none. Users can still change them in the data panel.
+  COLUMNS: { term: "C", def: "E", extra: "" },
   SHEET_URL: "https://docs.google.com/spreadsheets/d/1AGwXuKe-2oJApCs_oufObXzpZemcMPHXuwPzjBhUo38/edit?usp=sharing",
   // When both values above are set the page is locked to that sheet: users only
   // see a "Sign in" button. Clear either value to get the open (any-sheet) UI back.
@@ -232,6 +235,10 @@ const store = {
   del(k) { try { localStorage.removeItem(k); } catch {} },
 };
 function status(el, msg, kind) { el.textContent = msg || ""; el.className = "status" + (kind ? " " + kind : ""); }
+function dataStatus(msg, kind) {
+  status($("#ready-status"), msg, kind);
+  if (kind === "err") $("#data-details").open = true;
+}
 function show(name) {
   for (const v of ["setup", "ready", "quiz", "result"]) $("#view-" + v).classList.toggle("hidden", v !== name);
   window.scrollTo(0, 0);
@@ -360,7 +367,7 @@ const S = { source: null, rows: [], tabs: [], tab: "", entries: [], key: "" };
 let stats = {};  // word -> {c, w}
 
 const sheetKey = () => (S.source?.id || S.source?.url || "paste") + "|" + (S.tab || S.source?.gid || "");
-const cfgKey = () => "vq:cfg:" + S.key;
+const cfgKey = () => "vq:cfg2:" + S.key;
 
 async function fetchRows(tab) {
   const src = S.source;
@@ -439,10 +446,14 @@ function renderReady(title) {
   const guessedDef = guessCol(header, /shinkendo|context/i, guessCol(header, /mean|defin|explan|descr|説明|意味/i, wide ? c4 : c2));
   const extraFallback = wide ? c3 : used.length >= 3 ? c1 : -1;
   const guessedExtra = extraFallback !== guessedDef && extraFallback !== guessedTerm ? extraFallback : -1;
+  const pin = (k, guess) => {
+    const l = (CONFIG.COLUMNS || {})[k];
+    return l === undefined ? guess : l === "" ? -1 : [...l.toUpperCase()].reduce((a, c) => a * 26 + c.charCodeAt(0) - 64, 0) - 1;
+  };
   const okCol = (v, d, min = 0) => (Number.isInteger(v) && v >= min && (v === -1 || used.includes(v)) ? v : d);
-  fill($("#col-term"), colOpts(), okCol(saved.term, guessedTerm));
-  fill($("#col-def"), colOpts(), okCol(saved.def, guessedDef));
-  fill($("#col-extra"), [h("option", { value: -1 }, "— none —"), ...colOpts()], okCol(saved.extra, guessedExtra, -1));
+  fill($("#col-term"), colOpts(), okCol(saved.term, pin("term", guessedTerm)));
+  fill($("#col-def"), colOpts(), okCol(saved.def, pin("def", guessedDef)));
+  fill($("#col-extra"), [h("option", { value: -1 }, "— none —"), ...colOpts()], okCol(saved.extra, pin("extra", guessedExtra), -1));
 
   for (const id of ["mode", "count", "choices"]) if (saved[id] != null) $("#" + id).value = saved[id];
   $("#weighted").checked = saved.weighted ?? true;
@@ -455,8 +466,8 @@ function rebuildEntries(title) {
     .map((r) => ({ term: r[t], def: r[d], extra: x >= 0 ? r[x] : "" }))
     .filter((e) => e.term && e.def);
   const where = title ? `“${title}”` : "your data";
-  status($("#ready-status"), `${S.entries.length} usable entries from ${where}${S.tab ? " · " + S.tab : ""}.`, S.entries.length ? "ok" : "err");
-  status($("#quiz-status"), S.entries.length < 2 ? "Need at least two entries with both a word and an explanation." : "");
+  dataStatus(`${S.entries.length} usable entries from ${where}${S.tab ? " · " + S.tab : ""}.`, S.entries.length ? "ok" : "err");
+  status($("#quiz-status"), S.entries.length < 2 ? "Need at least two entries with both a word and an explanation." : `${S.entries.length} words ready.`);
   $("#btn-start").disabled = S.entries.length < 2;
   saveCfg();
 }
@@ -615,16 +626,16 @@ $("#sheet-url").addEventListener("keydown", (e) => { if (e.key === "Enter") $(($
 $("#file").onchange = async (e) => { const f = e.target.files[0]; if (f) $("#paste").value = await f.text(); };
 
 $("#tab").onchange = async (e) => {
-  status($("#ready-status"), "Loading tab…");
-  try { await refresh(e.target.value); } catch (err) { status($("#ready-status"), err.message, "err"); }
+  dataStatus("Loading tab…");
+  try { await refresh(e.target.value); } catch (err) { dataStatus(err.message, "err"); }
 };
 for (const id of ["col-term", "col-def", "col-extra", "has-header"]) $("#" + id).onchange = () => { if (id === "has-header") renderReadyFromControls(); else rebuildEntries(); };
 for (const id of ["mode", "count", "choices", "weighted"]) $("#" + id).onchange = saveCfg;
 function renderReadyFromControls() { saveCfg(); renderReady(); }
 
 $("#btn-reload").onclick = async () => {
-  status($("#ready-status"), "Reloading…");
-  try { await refresh(); } catch (err) { status($("#ready-status"), err.message, "err"); }
+  dataStatus("Reloading…");
+  try { await refresh(); } catch (err) { dataStatus(err.message, "err"); }
 };
 $("#btn-change").onclick = () => show("setup");
 $("#btn-debug").onclick = async () => {  // lets you paste what the page sees into a chat/bug report
@@ -633,7 +644,7 @@ $("#btn-debug").onclick = async () => {  // lets you paste what the page sees in
     columns: { term: $("#col-term").value, def: $("#col-def").value, extra: $("#col-extra").value }, header: $("#has-header").checked,
     usable: S.entries.length, firstRows: S.rows.slice(0, 4).map((r) => r.map((c) => c.slice(0, 60))),
   }, null, 1);
-  try { await navigator.clipboard.writeText(info); status($("#ready-status"), "Debug info copied to clipboard.", "ok"); } catch { prompt("Copy this:", info); }
+  try { await navigator.clipboard.writeText(info); dataStatus("Debug info copied to clipboard.", "ok"); } catch { prompt("Copy this:", info); }
 };
 $("#btn-share").onclick = async () => {
   const p = new URLSearchParams();
@@ -641,7 +652,7 @@ $("#btn-share").onclick = async () => {
   if (sheet) p.set("sheet", sheet);
   if (client) p.set("client", client);
   const url = location.href.split("#")[0] + (p.toString() && !LOCKED ? "#" + p : "");
-  try { await navigator.clipboard.writeText(url); status($("#ready-status"), "Share link copied. Anyone with access to the sheet can open it.", "ok"); }
+  try { await navigator.clipboard.writeText(url); dataStatus("Share link copied. Anyone with access to the sheet can open it.", "ok"); }
   catch { prompt("Copy this link:", url); }
 };
 $("#btn-reset-stats").onclick = () => {
