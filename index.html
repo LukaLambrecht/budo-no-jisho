@@ -47,6 +47,7 @@
   details { margin-top: 16px; } summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
   .hint { color: var(--muted); font-size: .85rem; margin: 6px 0 0; }
   .hidden { display: none !important; }
+  .locked .open-only { display: none !important; }
   .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
   .bar > div { height: 100%; background: var(--accent); transition: width .2s; }
   .meta { display: flex; justify-content: space-between; color: var(--muted); font-size: .85rem; margin-bottom: 16px; }
@@ -77,19 +78,19 @@
   <section id="view-setup">
     <div class="card">
       <h2>Load your sheet</h2>
-      <label for="sheet-url">Google Sheet link</label>
-      <input type="text" id="sheet-url" placeholder="https://docs.google.com/spreadsheets/d/…" autocomplete="off">
+      <label class="open-only" for="sheet-url">Google Sheet link</label>
+      <input type="text" class="open-only" id="sheet-url" placeholder="https://docs.google.com/spreadsheets/d/…" autocomplete="off">
       <div class="actions">
         <button class="primary" id="btn-signin">Sign in with Google &amp; load</button>
-        <button id="btn-public">Load without sign-in</button>
+        <button class="open-only" id="btn-public">Load without sign-in</button>
       </div>
       <p class="hint" id="signin-hint"></p>
       <div class="status" id="setup-status" role="status"></div>
 
       <details id="adv">
         <summary>Advanced / other ways to load</summary>
-        <label for="client-id">Google OAuth Client ID (needed for private sheets — see the setup notes at the top of the script)</label>
-        <input type="text" id="client-id" placeholder="123456789-abc….apps.googleusercontent.com" autocomplete="off">
+        <label class="open-only" for="client-id">Google OAuth Client ID (needed for private sheets — see the setup notes at the top of the script)</label>
+        <input type="text" class="open-only" id="client-id" placeholder="123456789-abc….apps.googleusercontent.com" autocomplete="off">
         <label for="paste">…or paste CSV / TSV (e.g. File → Download → CSV, or copy cells from the sheet)</label>
         <textarea id="paste" placeholder="word,explanation&#10;…"></textarea>
         <div class="row" style="margin-top:8px; align-items:center">
@@ -206,8 +207,10 @@
    Publish to web) work without any of this via "Load without sign-in".
    ========================================================================== */
 const CONFIG = {
-  CLIENT_ID: "",   // OAuth client ID (public, safe to embed)
-  SHEET_URL: "",   // default sheet link (optional)
+  CLIENT_ID: "888462818947-ad4319uqr687e4oe2lb3qpdccj7p3hpt.apps.googleusercontent.com",  // OAuth client ID (public, safe to embed)
+  SHEET_URL: "https://docs.google.com/spreadsheets/d/1AGwXuKe-2oJApCs_oufObXzpZemcMPHXuwPzjBhUo38/edit?usp=sharing",
+  // When both values above are set the page is locked to that sheet: users only
+  // see a "Sign in" button. Clear either value to get the open (any-sheet) UI back.
 };
 
 /* ---------- helpers ---------- */
@@ -637,7 +640,7 @@ $("#btn-share").onclick = async () => {
   const sheet = $("#sheet-url").value.trim(), client = $("#client-id").value.trim();
   if (sheet) p.set("sheet", sheet);
   if (client) p.set("client", client);
-  const url = location.href.split("#")[0] + (p.toString() ? "#" + p : "");
+  const url = location.href.split("#")[0] + (p.toString() && !LOCKED ? "#" + p : "");
   try { await navigator.clipboard.writeText(url); status($("#ready-status"), "Share link copied. Anyone with access to the sheet can open it.", "ok"); }
   catch { prompt("Copy this link:", url); }
 };
@@ -660,7 +663,16 @@ document.addEventListener("keydown", (e) => {
 });
 
 /* ---------- init ---------- */
+const LOCKED = !!(CONFIG.CLIENT_ID && CONFIG.SHEET_URL);
 (function init() {
+  if (LOCKED) {
+    document.body.classList.add("locked");
+    $("#btn-signin").textContent = "Sign in with Google";
+    $("#sheet-url").value = CONFIG.SHEET_URL;
+    $("#client-id").value = CONFIG.CLIENT_ID;
+    updateSigninState();
+    return;
+  }
   const last = store.get("vq:last", {});
   const hash = new URLSearchParams(location.hash.slice(1));
   $("#sheet-url").value = hash.get("sheet") || CONFIG.SHEET_URL || last.sheet || "";
