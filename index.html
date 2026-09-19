@@ -1,0 +1,669 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vocab Quiz</title>
+<style>
+  :root {
+    --bg: #f6f5f1; --card: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #dcdad2;
+    --accent: #b3261e; --accent-ink: #ffffff; --ok: #1e7b3a; --ok-bg: #e3f4e8; --bad: #b3261e; --bad-bg: #fbe5e3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #151517; --card: #202024; --ink: #f0f0f2; --muted: #9b9ba3; --line: #34343a;
+      --accent: #e5645b; --accent-ink: #151517; --ok: #6fd08c; --ok-bg: #1d3325; --bad: #ff8a80; --bad-bg: #3a2220;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.5 system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
+  }
+  main { max-width: 680px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  h2 { font-size: 1.1rem; margin: 0 0 12px; }
+  p.sub { margin: 0 0 20px; color: var(--muted); }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  label { display: block; font-size: .85rem; color: var(--muted); margin: 12px 0 4px; }
+  label.inline { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: .95rem; }
+  input[type=text], select, textarea {
+    width: 100%; padding: 9px 11px; font: inherit; color: var(--ink); background: var(--bg);
+    border: 1px solid var(--line); border-radius: 8px;
+  }
+  textarea { min-height: 120px; font-family: ui-monospace, monospace; font-size: .85rem; }
+  .row { display: flex; gap: 12px; flex-wrap: wrap; }
+  .row > * { flex: 1 1 150px; }
+  button {
+    font: inherit; cursor: pointer; padding: 9px 16px; border-radius: 8px;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink);
+  }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; }
+  .status { margin-top: 12px; font-size: .9rem; min-height: 1.3em; }
+  .status.err { color: var(--bad); } .status.ok { color: var(--ok); }
+  details { margin-top: 16px; } summary { cursor: pointer; color: var(--muted); font-size: .9rem; }
+  .hint { color: var(--muted); font-size: .85rem; margin: 6px 0 0; }
+  .hidden { display: none !important; }
+  .bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+  .bar > div { height: 100%; background: var(--accent); transition: width .2s; }
+  .meta { display: flex; justify-content: space-between; color: var(--muted); font-size: .85rem; margin-bottom: 16px; }
+  .qlabel { color: var(--muted); font-size: .85rem; margin-bottom: 6px; }
+  .prompt { font-size: 1.5rem; font-weight: 600; margin: 0 0 20px; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .prompt.long { font-size: 1.1rem; font-weight: 500; }
+  .opts { display: grid; gap: 8px; }
+  .opt { display: flex; gap: 10px; text-align: left; align-items: flex-start; width: 100%; }
+  .opt kbd { flex: none; min-width: 1.4em; text-align: center; color: var(--muted); font: .8rem ui-monospace, monospace; border: 1px solid var(--line); border-radius: 4px; padding: 0 4px; margin-top: 3px; }
+  .opt.correct { background: var(--ok-bg); border-color: var(--ok); }
+  .opt.wrong { background: var(--bad-bg); border-color: var(--bad); }
+  .feedback { margin-top: 16px; padding: 12px; border-radius: 8px; }
+  .feedback.ok { background: var(--ok-bg); } .feedback.bad { background: var(--bad-bg); }
+  .feedback .note { color: var(--muted); font-size: .9rem; margin-top: 4px; }
+  .score { font-size: 2.4rem; font-weight: 700; margin: 4px 0 12px; }
+  .missed { list-style: none; padding: 0; margin: 0; }
+  .missed li { padding: 8px 0; border-top: 1px solid var(--line); }
+  .missed b { display: block; }
+  .missed span { color: var(--muted); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Vocab Quiz</h1>
+  <p class="sub">Practice vocabulary straight from your Google Sheet.</p>
+
+  <!-- 1. Connect -->
+  <section id="view-setup">
+    <div class="card">
+      <h2>Load your sheet</h2>
+      <label for="sheet-url">Google Sheet link</label>
+      <input type="text" id="sheet-url" placeholder="https://docs.google.com/spreadsheets/d/…" autocomplete="off">
+      <div class="actions">
+        <button class="primary" id="btn-signin">Sign in with Google &amp; load</button>
+        <button id="btn-public">Load without sign-in</button>
+      </div>
+      <p class="hint" id="signin-hint"></p>
+      <div class="status" id="setup-status" role="status"></div>
+
+      <details id="adv">
+        <summary>Advanced / other ways to load</summary>
+        <label for="client-id">Google OAuth Client ID (needed for private sheets — see the setup notes at the top of the script)</label>
+        <input type="text" id="client-id" placeholder="123456789-abc….apps.googleusercontent.com" autocomplete="off">
+        <label for="paste">…or paste CSV / TSV (e.g. File → Download → CSV, or copy cells from the sheet)</label>
+        <textarea id="paste" placeholder="word,explanation&#10;…"></textarea>
+        <div class="row" style="margin-top:8px; align-items:center">
+          <input type="file" id="file" accept=".csv,.tsv,.txt,text/csv,text/plain">
+          <button id="btn-paste">Use pasted / uploaded data</button>
+        </div>
+      </details>
+    </div>
+  </section>
+
+  <!-- 2. Configure -->
+  <section id="view-ready" class="hidden">
+    <div class="card">
+      <h2>Your data</h2>
+      <div class="status ok" id="ready-status"></div>
+      <div class="row">
+        <div id="tab-wrap" class="hidden"><label for="tab">Tab</label><select id="tab"></select></div>
+        <div><label for="col-term">Word column</label><select id="col-term"></select></div>
+        <div><label for="col-def">Explanation column</label><select id="col-def"></select></div>
+        <div><label for="col-extra">Extra note (shown after answering)</label><select id="col-extra"></select></div>
+      </div>
+      <label class="inline"><input type="checkbox" id="has-header" checked> First row is a header</label>
+      <div class="actions">
+        <button id="btn-reload">↻ Reload from sheet</button>
+        <button id="btn-share">Copy share link</button>
+        <button id="btn-change">Change source</button>
+        <button id="btn-debug">Copy debug info</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Quiz</h2>
+      <div class="row">
+        <div>
+          <label for="mode">Type</label>
+          <select id="mode">
+            <option value="t2d">Word → pick the explanation</option>
+            <option value="d2t">Explanation → pick the word</option>
+            <option value="mixed">Mixed (both directions)</option>
+            <option value="type">Explanation → type the word</option>
+          </select>
+        </div>
+        <div>
+          <label for="count">Questions</label>
+          <select id="count"><option>10</option><option>20</option><option>50</option><option value="0">All</option></select>
+        </div>
+        <div>
+          <label for="choices">Choices</label>
+          <select id="choices"><option>3</option><option selected>4</option><option>5</option><option>6</option></select>
+        </div>
+      </div>
+      <label class="inline"><input type="checkbox" id="weighted" checked> Show words I miss more often</label>
+      <div class="actions">
+        <button class="primary" id="btn-start">Start quiz</button>
+        <button id="btn-reset-stats">Reset my progress</button>
+      </div>
+      <div class="status" id="quiz-status"></div>
+    </div>
+  </section>
+
+  <!-- 3. Quiz -->
+  <section id="view-quiz" class="hidden">
+    <div class="card">
+      <div class="bar"><div id="bar"></div></div>
+      <div class="meta"><span id="qnum"></span><span id="qscore"></span></div>
+      <div class="qlabel" id="qlabel"></div>
+      <p class="prompt" id="prompt"></p>
+      <div id="answer-area"></div>
+      <div id="feedback"></div>
+      <div class="actions">
+        <button class="primary hidden" id="btn-next">Next ⏎</button>
+        <button id="btn-quit">Quit</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Results -->
+  <section id="view-result" class="hidden">
+    <div class="card">
+      <h2>Results</h2>
+      <div class="score" id="final-score"></div>
+      <div id="missed-wrap"></div>
+      <div class="actions">
+        <button class="primary hidden" id="btn-retry">Retry missed</button>
+        <button id="btn-again">New quiz</button>
+        <button id="btn-back">Back to data</button>
+      </div>
+    </div>
+  </section>
+</main>
+
+<script>
+/* ==========================================================================
+   SETUP NOTES
+   --------------------------------------------------------------------------
+   Reading a PRIVATE sheet from a browser needs Google sign-in (OAuth):
+     1. console.cloud.google.com → new project → "APIs & Services" →
+        enable "Google Sheets API".
+     2. "OAuth consent screen": External, add yourself and colleagues as
+        "Test users" (up to 100, no Google review needed).
+     3. "Credentials" → Create → OAuth client ID → type "Web application".
+        Add the URL where you host this file to "Authorized JavaScript
+        origins" (e.g. https://yourname.github.io  or  http://localhost:8000).
+        Google sign-in does NOT work from a file:// page, so host the file
+        (GitHub Pages / Netlify Drop / any static host) or run
+        `python3 -m http.server` next to it.
+     4. Paste the Client ID below (so everyone you share the file with gets
+        it prefilled), and optionally the sheet link.
+   Each user signs in with their own Google account; only people who already
+   have access to the sheet can load it. Nothing is sent anywhere except to
+   Google.
+
+   Sheets shared as "anyone with the link can view" (or File → Share →
+   Publish to web) work without any of this via "Load without sign-in".
+   ========================================================================== */
+const CONFIG = {
+  CLIENT_ID: "",   // OAuth client ID (public, safe to embed)
+  SHEET_URL: "",   // default sheet link (optional)
+};
+
+/* ---------- helpers ---------- */
+const $ = (s) => document.querySelector(s);
+function h(tag, props, ...kids) {
+  const e = document.createElement(tag);
+  for (const [k, v] of Object.entries(props || {})) {
+    if (k === "class") e.className = v;
+    else if (k.startsWith("on")) e.addEventListener(k.slice(2), v);
+    else if (v === true) e.setAttribute(k, "");
+    else if (v !== false && v != null) e.setAttribute(k, v);
+  }
+  for (const c of kids.flat()) if (c != null) e.append(c);
+  return e;
+}
+const store = {
+  get(k, d) { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch { return d; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  del(k) { try { localStorage.removeItem(k); } catch {} },
+};
+function status(el, msg, kind) { el.textContent = msg || ""; el.className = "status" + (kind ? " " + kind : ""); }
+function show(name) {
+  for (const v of ["setup", "ready", "quiz", "result"]) $("#view-" + v).classList.toggle("hidden", v !== name);
+  window.scrollTo(0, 0);
+}
+function shuffle(a) {
+  a = a.slice();
+  for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+  return a;
+}
+const norm = (s) => s.normalize("NFKC").toLowerCase().replace(/[\s.,;:!?'"’“”()（）\[\]{}・、。\-‐]+/g, "");
+const colLetter = (i) => (i >= 26 ? colLetter(Math.floor(i / 26) - 1) : "") + String.fromCharCode(65 + (i % 26));
+
+/* ---------- CSV / TSV ---------- */
+function parseDelimited(text) {
+  text = text.replace(/^﻿/, "");
+  const first = text.split(/\r?\n/, 1)[0];
+  const count = (c) => first.split(c).length;
+  const delim = [["\t", count("\t")], [";", count(";")], [",", count(",")]].sort((a, b) => b[1] - a[1])[0][0];
+  const rows = []; let row = [], cur = "", q = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (q) {
+      if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+      else cur += c;
+    } else if (c === '"' && cur === "") q = true;
+    else if (c === delim) { row.push(cur); cur = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i + 1] === "\n") i++;
+      row.push(cur); cur = ""; rows.push(row); row = [];
+    } else cur += c;
+  }
+  if (cur !== "" || row.length) { row.push(cur); rows.push(row); }
+  return rows;
+}
+function cleanRows(rows) {
+  rows = rows.map((r) => r.map((c) => String(c ?? "").trim())).filter((r) => r.some(Boolean));
+  const w = Math.max(0, ...rows.map((r) => r.length));
+  return rows.map((r) => r.concat(Array(w - r.length).fill("")));
+}
+
+/* ---------- Google auth + fetching ---------- */
+const SCOPE = "https://www.googleapis.com/auth/spreadsheets.readonly";
+let gisReady = null, tokenClient = null, tokenClientFor = "", pending = null, accessToken = "", tokenExpiry = 0;
+
+function loadGis() {
+  if (gisReady) return gisReady;
+  gisReady = new Promise((res, rej) => {
+    const s = document.createElement("script");
+    s.src = "https://accounts.google.com/gsi/client";
+    s.onload = res; s.onerror = () => { gisReady = null; rej(new Error("Could not load Google sign-in (offline or blocked?)")); };
+    document.head.append(s);
+  });
+  return gisReady;
+}
+async function getToken() {
+  if (accessToken && Date.now() < tokenExpiry - 30000) return accessToken;
+  const clientId = $("#client-id").value.trim();
+  if (!clientId) throw new Error("Add a Google OAuth Client ID under “Advanced” first.");
+  if (location.protocol === "file:") throw new Error("Google sign-in needs the page to be served over http(s), not opened as a file. See the setup notes.");
+  await loadGis();
+  if (!tokenClient || tokenClientFor !== clientId) {
+    tokenClientFor = clientId;
+    tokenClient = google.accounts.oauth2.initTokenClient({
+      client_id: clientId, scope: SCOPE,
+      callback: (r) => {
+        if (r.error) return pending?.rej(new Error(r.error_description || r.error));
+        accessToken = r.access_token; tokenExpiry = Date.now() + (r.expires_in || 3600) * 1000;
+        pending?.res(accessToken);
+      },
+      error_callback: (e) => pending?.rej(new Error(e.type === "popup_closed" ? "Sign-in cancelled." : e.message || e.type)),
+    });
+  }
+  return new Promise((res, rej) => { pending = { res, rej }; tokenClient.requestAccessToken({ prompt: "" }); });
+}
+async function sheetsGet(id, path, retried) {
+  const r = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${id}${path}`, { headers: { Authorization: "Bearer " + (await getToken()) } });
+  if (r.status === 401 && !retried) { accessToken = ""; return sheetsGet(id, path, true); }
+  if (!r.ok) {
+    const j = await r.json().catch(() => null);
+    const m = j?.error?.message || r.statusText;
+    throw new Error(r.status === 403 || r.status === 404 ? `Google says: ${m}. Does your account have access to this sheet?` : m);
+  }
+  return r.json();
+}
+
+function parseSheetLink(s) {
+  s = s.trim();
+  const gid = (s.match(/[#&?]gid=(\d+)/) || [])[1];
+  let m = s.match(/spreadsheets\/d\/e\/([\w-]+)/);
+  if (m) return { published: true, id: m[1], gid, url: s };
+  m = s.match(/spreadsheets\/d\/([\w-]+)/);
+  if (m) return { id: m[1], gid };
+  if (/^[\w-]{25,}$/.test(s)) return { id: s };
+  if (/^https?:\/\/.+output=(csv|tsv)/.test(s)) return { direct: true, url: s };
+  return null;
+}
+
+/* Each loader returns { rows, tabs?, tab? } */
+async function loadViaApi(src, tabTitle) {
+  const meta = await sheetsGet(src.id, "?fields=properties.title,sheets.properties(sheetId,title)");
+  const tabs = meta.sheets.map((s) => s.properties);
+  let tab = tabs.find((t) => t.title === tabTitle) || tabs.find((t) => String(t.sheetId) === String(src.gid)) || tabs[0];
+  const range = encodeURIComponent("'" + tab.title.replace(/'/g, "''") + "'");
+  const vals = await sheetsGet(src.id, `/values/${range}?valueRenderOption=FORMATTED_VALUE`);
+  return { rows: vals.values || [], tabs: tabs.map((t) => t.title), tab: tab.title, title: meta.properties.title };
+}
+async function loadViaPublicUrl(src) {
+  let url;
+  if (src.direct) url = src.url;
+  else if (src.published) url = `https://docs.google.com/spreadsheets/d/e/${src.id}/pub?output=csv` + (src.gid ? `&gid=${src.gid}` : "");
+  else url = `https://docs.google.com/spreadsheets/d/${src.id}/gviz/tq?tqx=out:csv` + (src.gid ? `&gid=${src.gid}` : "");
+  let text;
+  try {
+    const r = await fetch(url);
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    text = await r.text();
+  } catch {
+    throw new Error("Couldn’t read the sheet without signing in — it is probably private. Use “Sign in with Google”, or paste/upload a CSV under Advanced.");
+  }
+  if (/^\s*<(!doctype|html)/i.test(text)) throw new Error("That sheet isn’t publicly readable. Use “Sign in with Google” instead.");
+  return { rows: parseDelimited(text) };
+}
+
+/* ---------- state ---------- */
+const S = { source: null, rows: [], tabs: [], tab: "", entries: [], key: "" };
+let stats = {};  // word -> {c, w}
+
+const sheetKey = () => (S.source?.id || S.source?.url || "paste") + "|" + (S.tab || S.source?.gid || "");
+const cfgKey = () => "vq:cfg:" + S.key;
+
+async function fetchRows(tab) {
+  const src = S.source;
+  if (src.kind === "api") return loadViaApi(src, tab);
+  if (src.kind === "public") return loadViaPublicUrl(src);
+  return { rows: parseDelimited(src.text) };
+}
+
+async function connect(kind) {
+  const st = $("#setup-status");
+  status(st, "");
+  let src;
+  if (kind === "paste") {
+    const text = $("#paste").value;
+    if (!text.trim()) return status(st, "Paste some CSV first (or choose a file).", "err");
+    src = { kind: "paste", text };
+  } else {
+    const link = parseSheetLink($("#sheet-url").value);
+    if (!link) return status(st, "That doesn’t look like a Google Sheets link.", "err");
+    src = { ...link, kind: kind === "api" && !link.direct && !link.published ? "api" : "public" };
+    if (kind === "api" && src.kind !== "api") return status(st, "Published/CSV links don’t need sign-in — use “Load without sign-in”.", "err");
+  }
+  S.source = src; S.tab = "";
+  const buttons = document.querySelectorAll("#view-setup button");
+  buttons.forEach((b) => (b.disabled = true));
+  status(st, kind === "api" ? "Waiting for Google…" : "Loading…");
+  try {
+    await refresh();
+    store.set("vq:last", { sheet: $("#sheet-url").value.trim(), client: $("#client-id").value.trim() });
+    status(st, "");
+  } catch (e) {
+    status(st, e.message, "err");
+  } finally {
+    buttons.forEach((b) => (b.disabled = false));
+    updateSigninState();
+  }
+}
+
+async function refresh(tab) {
+  const res = await fetchRows(tab || S.tab);
+  S.rows = cleanRows(res.rows);
+  S.tabs = res.tabs || []; S.tab = res.tab || "";
+  if (!S.rows.length) throw new Error("The sheet appears to be empty.");
+  S.key = sheetKey();
+  stats = store.get("vq:stats:" + S.key, {});
+  renderReady(res.title);
+  show("ready");
+}
+
+/* ---------- configure view ---------- */
+function guessCol(header, re, fallback) {
+  const i = header.findIndex((c) => re.test(c));
+  return i >= 0 ? i : fallback;
+}
+function renderReady(title) {
+  const saved = store.get(cfgKey(), {});
+  const width = S.rows[0].length;
+
+  $("#tab-wrap").classList.toggle("hidden", S.tabs.length < 2);
+  const tabSel = $("#tab"); tabSel.replaceChildren(...S.tabs.map((t) => h("option", { value: t, selected: t === S.tab }, t)));
+
+  const hasHeader = saved.hasHeader ?? true;
+  $("#has-header").checked = hasHeader;
+  const header = hasHeader ? S.rows[0] : [];
+  // Only offer columns that actually contain something (your sheet starts at column C).
+  const used = Array.from({ length: width }, (_, i) => i).filter((i) => S.rows.some((r) => r[i]));
+  const label = (i) => colLetter(i) + (header[i] ? ": " + header[i] : "");
+  const fill = (sel, opts, val) => { sel.replaceChildren(...opts); sel.value = String(val); };
+  const colOpts = () => used.map((i) => h("option", { value: i }, label(i)));
+
+  // Defaults: 1st filled column = word, 3rd = explanation (2nd if only two), 2nd = extra note.
+  const [c0, c1 = c0, c2 = c1] = used;
+  const guessedTerm = guessCol(header, /romaji|word|term|vocab|kanji|japanese|expression|語/i, c0);
+  const guessedDef = guessCol(header, /shinkendo|context/i, guessCol(header, /mean|defin|explan|descr|説明|意味/i, c2));
+  const guessedExtra = used.length >= 3 && c1 !== guessedDef && c1 !== guessedTerm ? c1 : -1;
+  const okCol = (v, d, min = 0) => (Number.isInteger(v) && v >= min && (v === -1 || used.includes(v)) ? v : d);
+  fill($("#col-term"), colOpts(), okCol(saved.term, guessedTerm));
+  fill($("#col-def"), colOpts(), okCol(saved.def, guessedDef));
+  fill($("#col-extra"), [h("option", { value: -1 }, "— none —"), ...colOpts()], okCol(saved.extra, guessedExtra, -1));
+
+  for (const id of ["mode", "count", "choices"]) if (saved[id] != null) $("#" + id).value = saved[id];
+  $("#weighted").checked = saved.weighted ?? true;
+  rebuildEntries(title);
+}
+function rebuildEntries(title) {
+  const t = +$("#col-term").value, d = +$("#col-def").value, x = +$("#col-extra").value;
+  const body = $("#has-header").checked ? S.rows.slice(1) : S.rows;
+  S.entries = body
+    .map((r) => ({ term: r[t], def: r[d], extra: x >= 0 ? r[x] : "" }))
+    .filter((e) => e.term && e.def);
+  const where = title ? `“${title}”` : "your data";
+  status($("#ready-status"), `${S.entries.length} usable entries from ${where}${S.tab ? " · " + S.tab : ""}.`, S.entries.length ? "ok" : "err");
+  status($("#quiz-status"), S.entries.length < 2 ? "Need at least two entries with both a word and an explanation." : "");
+  $("#btn-start").disabled = S.entries.length < 2;
+  saveCfg();
+}
+function saveCfg() {
+  if (!S.key) return;
+  store.set(cfgKey(), {
+    hasHeader: $("#has-header").checked, term: +$("#col-term").value, def: +$("#col-def").value, extra: +$("#col-extra").value,
+    mode: $("#mode").value, count: $("#count").value, choices: $("#choices").value, weighted: $("#weighted").checked,
+  });
+}
+
+/* ---------- quiz generation ---------- */
+function weightOf(e) {
+  const s = stats[e.term] || { c: 0, w: 0 };
+  return 0.5 + 3 * (s.w + 1) / (s.c + s.w + 2);
+}
+function sample(entries, n, weighted) {
+  const pool = entries.map((e) => ({ e, w: weighted ? weightOf(e) : 1 }));
+  const out = [];
+  while (out.length < n && pool.length) {
+    let r = Math.random() * pool.reduce((a, p) => a + p.w, 0), i = 0;
+    for (; i < pool.length - 1; i++) { r -= pool[i].w; if (r <= 0) break; }
+    out.push(pool.splice(i, 1)[0].e);
+  }
+  return out;
+}
+function buildQuestion(entry, mode, nChoices) {
+  const dir = mode === "mixed" ? (Math.random() < 0.5 ? "t2d" : "d2t") : mode;
+  const q = { entry, dir, answer: dir === "t2d" ? entry.def : entry.term, prompt: dir === "t2d" ? entry.term : entry.def, done: false, ok: false };
+  if (dir === "type") return q;
+  const pick = (e) => (dir === "t2d" ? e.def : e.term);
+  const seen = new Set([norm(q.answer)]);
+  const distractors = [];
+  for (const e of shuffle(S.entries)) {
+    const text = pick(e), k = norm(text);
+    if (e === entry || seen.has(k)) continue;
+    seen.add(k); distractors.push(text);
+    if (distractors.length >= nChoices - 1) break;
+  }
+  q.options = shuffle([q.answer, ...distractors]);
+  q.correctIdx = q.options.indexOf(q.answer);
+  return q;
+}
+
+/* ---------- quiz run ---------- */
+let Q = null;
+function startQuiz(entries) {
+  const mode = $("#mode").value, nChoices = +$("#choices").value;
+  const total = +$("#count").value || entries.length;
+  const picked = sample(entries, Math.min(total, entries.length), $("#weighted").checked);
+  Q = { mode, nChoices, questions: picked.map((e) => buildQuestion(e, mode, nChoices)), i: 0, score: 0 };
+  show("quiz");
+  renderQuestion();
+}
+function renderQuestion() {
+  const q = Q.questions[Q.i];
+  $("#bar").style.width = (Q.i / Q.questions.length) * 100 + "%";
+  $("#qnum").textContent = `Question ${Q.i + 1} of ${Q.questions.length}`;
+  $("#qscore").textContent = `Score: ${Q.score}`;
+  $("#qlabel").textContent = q.dir === "t2d" ? "What is the explanation of…" : q.dir === "d2t" ? "Which word matches this explanation?" : "Type the word that matches this explanation";
+  const p = $("#prompt"); p.textContent = q.prompt; p.classList.toggle("long", q.prompt.length > 60);
+  $("#feedback").replaceChildren();
+  $("#btn-next").classList.add("hidden");
+  const area = $("#answer-area");
+  if (q.dir === "type") {
+    const input = h("input", { type: "text", id: "typed", autocomplete: "off", autocapitalize: "off", spellcheck: "false", placeholder: "Your answer" });
+    const submit = () => { if (!q.done) answerTyped(input.value); };
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); submit(); } });
+    area.replaceChildren(input, h("div", { class: "actions" }, h("button", { class: "primary", onclick: submit }, "Check"), h("button", { onclick: () => answerTyped("") }, "I don’t know")));
+    input.focus();
+  } else {
+    area.replaceChildren(h("div", { class: "opts" }, q.options.map((text, i) =>
+      h("button", { class: "opt", "data-i": i, onclick: () => answerChoice(i) }, h("kbd", null, i + 1), h("span", null, text)))));
+  }
+}
+function record(entry, ok) {
+  const s = (stats[entry.term] ||= { c: 0, w: 0 });
+  ok ? s.c++ : s.w++;
+  store.set("vq:stats:" + S.key, stats);
+}
+function finishAnswer(q, ok, yourAnswer) {
+  q.done = true; q.ok = ok; q.given = yourAnswer;
+  if (ok) Q.score++;
+  record(q.entry, ok);
+  $("#qscore").textContent = `Score: ${Q.score}`;
+  const fb = h("div", { class: "feedback " + (ok ? "ok" : "bad") },
+    h("b", null, ok ? "Correct!" : "Not quite."),
+    !ok && q.dir === "type" ? h("div", null, "Answer: " + q.answer) : null,
+    q.entry.extra ? h("div", { class: "note" }, q.entry.extra) : null);
+  if (!ok && q.dir === "type" && yourAnswer) {
+    fb.append(h("div", { class: "actions" }, h("button", { onclick: () => overrideCorrect(q, fb) }, "I was actually right")));
+  }
+  $("#feedback").replaceChildren(fb);
+  const next = $("#btn-next");
+  next.textContent = Q.i + 1 >= Q.questions.length ? "See results ⏎" : "Next ⏎";
+  next.classList.remove("hidden");
+  next.focus({ preventScroll: true });
+}
+function overrideCorrect(q, fb) {
+  q.ok = true; Q.score++;
+  const s = stats[q.entry.term]; s.w--; s.c++;
+  store.set("vq:stats:" + S.key, stats);
+  $("#qscore").textContent = `Score: ${Q.score}`;
+  fb.className = "feedback ok"; fb.firstChild.textContent = "Marked as correct.";
+  fb.querySelector(".actions")?.remove();
+}
+function answerChoice(i) {
+  const q = Q.questions[Q.i];
+  if (q.done) return;
+  const btns = document.querySelectorAll(".opt");
+  btns.forEach((b, j) => { b.disabled = true; if (j === q.correctIdx) b.classList.add("correct"); else if (j === i) b.classList.add("wrong"); });
+  finishAnswer(q, i === q.correctIdx, q.options[i]);
+}
+function answerTyped(text) {
+  const q = Q.questions[Q.i];
+  const given = norm(text);
+  const alts = [q.answer, ...q.answer.split(/\s*[\/／;；,、]\s*/), q.answer.replace(/[（(][^）)]*[）)]/g, "")].map(norm).filter(Boolean);
+  const ok = given !== "" && alts.includes(given);
+  const input = $("#typed"); if (input) input.disabled = true;
+  finishAnswer(q, ok, text);
+}
+function nextQuestion() {
+  const q = Q.questions[Q.i];
+  if (!q.done) return;
+  if (++Q.i >= Q.questions.length) return showResults();
+  renderQuestion();
+}
+function showResults() {
+  const total = Q.questions.length;
+  $("#final-score").textContent = `${Q.score} / ${total}  (${Math.round((Q.score / total) * 100)}%)`;
+  const missed = Q.questions.filter((q) => !q.ok);
+  Q.missed = missed.map((q) => q.entry);
+  $("#missed-wrap").replaceChildren(missed.length
+    ? h("div", null, h("h2", null, "To review"), h("ul", { class: "missed" }, missed.map((q) =>
+        h("li", null, h("b", null, q.entry.term), h("span", null, q.entry.def), q.entry.extra ? h("span", null, " — " + q.entry.extra) : null))))
+    : h("p", null, "Perfect round! 🎉"));
+  $("#btn-retry").classList.toggle("hidden", !missed.length);
+  show("result");
+}
+
+/* ---------- wiring ---------- */
+function updateSigninState() {
+  const has = !!$("#client-id").value.trim();
+  $("#btn-signin").disabled = false;
+  $("#signin-hint").textContent = has ? "" : "Private sheet? Sign-in needs a one-time Google Client ID under “Advanced”. Link-shared sheets work with “Load without sign-in”.";
+  if (has && !gisReady && location.protocol !== "file:") loadGis().catch(() => {});  // preload so the popup isn't blocked
+}
+$("#btn-signin").onclick = () => {
+  if (!$("#client-id").value.trim()) { $("#adv").open = true; $("#client-id").focus(); return status($("#setup-status"), "Add your Google OAuth Client ID first.", "err"); }
+  connect("api");
+};
+$("#btn-public").onclick = () => connect("public");
+$("#btn-paste").onclick = () => connect("paste");
+$("#client-id").oninput = updateSigninState;
+$("#sheet-url").addEventListener("keydown", (e) => { if (e.key === "Enter") $(($("#client-id").value.trim() ? "#btn-signin" : "#btn-public")).click(); });
+$("#file").onchange = async (e) => { const f = e.target.files[0]; if (f) $("#paste").value = await f.text(); };
+
+$("#tab").onchange = async (e) => {
+  status($("#ready-status"), "Loading tab…");
+  try { await refresh(e.target.value); } catch (err) { status($("#ready-status"), err.message, "err"); }
+};
+for (const id of ["col-term", "col-def", "col-extra", "has-header"]) $("#" + id).onchange = () => { if (id === "has-header") renderReadyFromControls(); else rebuildEntries(); };
+for (const id of ["mode", "count", "choices", "weighted"]) $("#" + id).onchange = saveCfg;
+function renderReadyFromControls() { saveCfg(); renderReady(); }
+
+$("#btn-reload").onclick = async () => {
+  status($("#ready-status"), "Reloading…");
+  try { await refresh(); } catch (err) { status($("#ready-status"), err.message, "err"); }
+};
+$("#btn-change").onclick = () => show("setup");
+$("#btn-debug").onclick = async () => {  // lets you paste what the page sees into a chat/bug report
+  const info = JSON.stringify({
+    source: S.source?.kind, tab: S.tab, tabs: S.tabs, rows: S.rows.length, width: S.rows[0]?.length,
+    columns: { term: $("#col-term").value, def: $("#col-def").value, extra: $("#col-extra").value }, header: $("#has-header").checked,
+    usable: S.entries.length, firstRows: S.rows.slice(0, 4).map((r) => r.map((c) => c.slice(0, 60))),
+  }, null, 1);
+  try { await navigator.clipboard.writeText(info); status($("#ready-status"), "Debug info copied to clipboard.", "ok"); } catch { prompt("Copy this:", info); }
+};
+$("#btn-share").onclick = async () => {
+  const p = new URLSearchParams();
+  const sheet = $("#sheet-url").value.trim(), client = $("#client-id").value.trim();
+  if (sheet) p.set("sheet", sheet);
+  if (client) p.set("client", client);
+  const url = location.href.split("#")[0] + (p.toString() ? "#" + p : "");
+  try { await navigator.clipboard.writeText(url); status($("#ready-status"), "Share link copied. Anyone with access to the sheet can open it.", "ok"); }
+  catch { prompt("Copy this link:", url); }
+};
+$("#btn-reset-stats").onclick = () => {
+  if (!confirm("Forget which words you got right or wrong?")) return;
+  stats = {}; store.del("vq:stats:" + S.key);
+  status($("#quiz-status"), "Progress reset.", "ok");
+};
+$("#btn-start").onclick = () => startQuiz(S.entries);
+$("#btn-next").onclick = nextQuestion;
+$("#btn-quit").onclick = () => show("ready");
+$("#btn-again").onclick = () => startQuiz(S.entries);
+$("#btn-retry").onclick = () => startQuiz(Q.missed.length >= 2 ? Q.missed : S.entries);
+$("#btn-back").onclick = () => show("ready");
+document.addEventListener("keydown", (e) => {
+  if ($("#view-quiz").classList.contains("hidden") || e.metaKey || e.ctrlKey || e.altKey) return;
+  const q = Q?.questions[Q.i]; if (!q) return;
+  if (!q.done && q.dir !== "type" && /^[1-9]$/.test(e.key) && +e.key <= q.options.length) answerChoice(+e.key - 1);
+  else if (q.done && (e.key === "Enter" || e.key === " ") && document.activeElement?.tagName !== "BUTTON") { e.preventDefault(); nextQuestion(); }
+});
+
+/* ---------- init ---------- */
+(function init() {
+  const last = store.get("vq:last", {});
+  const hash = new URLSearchParams(location.hash.slice(1));
+  $("#sheet-url").value = hash.get("sheet") || CONFIG.SHEET_URL || last.sheet || "";
+  $("#client-id").value = hash.get("client") || CONFIG.CLIENT_ID || last.client || "";
+  updateSigninState();
+})();
+</script>
+</body>
+</html>
