@@ -428,11 +428,14 @@ function renderReady(title) {
   const fill = (sel, opts, val) => { sel.replaceChildren(...opts); sel.value = String(val); };
   const colOpts = () => used.map((i) => h("option", { value: i }, label(i)));
 
-  // Defaults: 1st filled column = word, 3rd = explanation (2nd if only two), 2nd = extra note.
-  const [c0, c1 = c0, c2 = c1] = used;
-  const guessedTerm = guessCol(header, /romaji|word|term|vocab|kanji|japanese|expression|語/i, c0);
-  const guessedDef = guessCol(header, /shinkendo|context/i, guessCol(header, /mean|defin|explan|descr|説明|意味/i, c2));
-  const guessedExtra = used.length >= 3 && c1 !== guessedDef && c1 !== guessedTerm ? c1 : -1;
+  // Defaults: header names first; otherwise a 5+ column sheet is assumed to be
+  // A: misc, B: kanji, C: romaji, D: English, E: meaning (extra columns ignored).
+  const [c0, c1 = c0, c2 = c1, c3, c4] = used;
+  const wide = used.length >= 5;
+  const guessedTerm = guessCol(header, /romaji|word|term|vocab/i, wide ? c2 : c0);
+  const guessedDef = guessCol(header, /shinkendo|context/i, guessCol(header, /mean|defin|explan|descr|説明|意味/i, wide ? c4 : c2));
+  const extraFallback = wide ? c3 : used.length >= 3 ? c1 : -1;
+  const guessedExtra = extraFallback !== guessedDef && extraFallback !== guessedTerm ? extraFallback : -1;
   const okCol = (v, d, min = 0) => (Number.isInteger(v) && v >= min && (v === -1 || used.includes(v)) ? v : d);
   fill($("#col-term"), colOpts(), okCol(saved.term, guessedTerm));
   fill($("#col-def"), colOpts(), okCol(saved.def, guessedDef));
