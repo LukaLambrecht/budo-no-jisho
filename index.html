@@ -3,28 +3,42 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Vocab Quiz</title>
+<title>Budo no Jisho</title>
 <style>
   :root {
     --bg: #f6f5f1; --card: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #dcdad2;
     --accent: #b3261e; --accent-ink: #ffffff; --ok: #1e7b3a; --ok-bg: #e3f4e8; --bad: #b3261e; --bad-bg: #fbe5e3;
+    --veil: rgba(0, 0, 0, .08);
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #151517; --card: #202024; --ink: #f0f0f2; --muted: #9b9ba3; --line: #34343a;
       --accent: #e5645b; --accent-ink: #151517; --ok: #6fd08c; --ok-bg: #1d3325; --bad: #ff8a80; --bad-bg: #3a2220;
+      --veil: rgba(0, 0, 0, .55);
     }
+  }
+  /* Yuji Syuku (SIL OFL), subset to Latin letters; other characters fall back to the serif stack. */
+  @font-face {
+    font-family: "Yuji Syuku"; src: url("res/fonts/yuji-syuku-latin.ttf") format("truetype");
+    font-weight: 400; font-display: swap;
   }
   * { box-sizing: border-box; }
   body {
     margin: 0; background: var(--bg); color: var(--ink);
     font: 16px/1.5 system-ui, -apple-system, "Segoe UI", "Hiragino Sans", "Noto Sans JP", "Yu Gothic", sans-serif;
   }
+  /* Background photo on a fixed layer (more reliable than background-attachment on mobile). */
+  body::before {
+    content: ""; position: fixed; inset: 0; z-index: -1;
+    background: linear-gradient(var(--veil), var(--veil)), url("res/img/bkg-bamboo.webp") center / cover no-repeat;
+  }
   main { max-width: 680px; margin: 0 auto; padding: 24px 16px 64px; }
-  h1 { font-size: 1.4rem; margin: 0 0 4px; }
+  h1, p.sub { font-family: "Yuji Syuku", "Hiragino Mincho ProN", "Yu Mincho", "Noto Serif JP", serif; font-weight: 400; }
+  h1 { font-size: 2.2rem; line-height: 1.2; margin: 0 0 2px; letter-spacing: .04em; }
   h2 { font-size: 1.1rem; margin: 0 0 12px; }
-  p.sub { margin: 0 0 20px; color: var(--muted); }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
+  p.sub { margin: 0; color: var(--ink); font-size: 1.05rem; letter-spacing: .04em; }
+  .masthead { padding: 16px 20px; }
+  .card { background: color-mix(in srgb, var(--card) 93%, transparent); backdrop-filter: blur(6px); border: 1px solid var(--line); border-radius: 12px; padding: 20px; margin-bottom: 16px; }
   label { display: block; font-size: .85rem; color: var(--muted); margin: 12px 0 4px; }
   label.inline { display: flex; align-items: center; gap: 8px; color: var(--ink); font-size: .95rem; }
   input[type=text], select, textarea {
@@ -72,13 +86,15 @@
 </head>
 <body>
 <main>
-  <h1>Vocab Quiz</h1>
-  <p class="sub">Practice vocabulary straight from your Google Sheet.</p>
+  <header class="card masthead">
+    <h1>Budo no Jisho</h1>
+    <p class="sub">Practice shinkendo terminology</p>
+  </header>
 
   <!-- 1. Connect -->
   <section id="view-setup">
     <div class="card">
-      <h2>Load your sheet</h2>
+      <h2>Load budo-no-jisho sheet data</h2>
       <label class="open-only" for="sheet-url">Google Sheet link</label>
       <input type="text" class="open-only" id="sheet-url" placeholder="https://docs.google.com/spreadsheets/d/…" autocomplete="off">
       <div class="actions">
@@ -105,7 +121,7 @@
   <!-- 2. Configure -->
   <section id="view-ready" class="hidden">
     <div class="card">
-      <h2>Quiz</h2>
+      <h2>Quiz setup</h2>
       <div class="row">
         <div>
           <label for="mode">Type</label>
@@ -118,7 +134,7 @@
         </div>
         <div>
           <label for="count">Questions</label>
-          <select id="count"><option>10</option><option>20</option><option>50</option><option value="0">All</option></select>
+          <select id="count"><option>3</option><option>5</option><option selected>10</option><option>20</option><option>50</option><option value="0">All</option></select>
         </div>
         <div>
           <label for="choices">Choices</label>
